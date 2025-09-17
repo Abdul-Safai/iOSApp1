@@ -5,29 +5,46 @@ struct OrderDetailView: View {
     @Environment(\.dismiss) private var dismiss
     let person: Person
 
-    @State private var working: Order = Order()
-    @State private var showSuccess: Bool = false
-    @State private var confirmClearSubmitted: Bool = false
-    @State private var confirmClearCurrent: Bool = false
+    // Selections start as nil so we can show "Select ..." placeholders
+    @State private var selectedDrink: DrinkType? = nil
+    @State private var selectedSize:  CupSize?   = nil
 
-    private var isUpdatingExisting: Bool { person.lastOrder != nil }
+    // Other fields can keep defaults
+    @State private var working: Order = Order()
+
+    @State private var showSubmitted: Bool = false
+    @State private var showUpdated:   Bool = false
+    @State private var confirmClear:  Bool = false
+
+    // Look up the live Person in the store so UI reacts to changes
+    private var livePerson: Person? {
+        store.people.first(where: { $0.id == person.id })
+    }
+    private var hasSavedOrder: Bool {
+        (livePerson?.lastOrder) != nil
+    }
+    private var canSubmitNew: Bool {
+        selectedDrink != nil && selectedSize != nil
+    }
 
     var body: some View {
         Form {
-            // MARK: Drink
+            // MARK: Drink (Pickers with "Select ..." placeholders)
             Section("Drink") {
-                Picker("Type", selection: $working.drink) {
+                Picker("Type", selection: $selectedDrink) {
+                    Text("Select Type").tag(DrinkType?.none) // placeholder
                     ForEach(DrinkType.allCases) { type in
-                        Text(type.rawValue).tag(type)
+                        Text(type.rawValue).tag(Optional(type))
                     }
                 }
-                Picker("Size", selection: $working.size) {
+                Picker("Size", selection: $selectedSize) {
+                    Text("Select Size").tag(CupSize?.none) // placeholder
                     ForEach(CupSize.allCases) { size in
-                        Text(size.rawValue).tag(size)
+                        Text(size.rawValue).tag(Optional(size))
                     }
                 }
                 Toggle("Decaf", isOn: $working.decaf)
-                Toggle("Iced", isOn: $working.iced)
+                Toggle("Iced",  isOn: $working.iced)
             }
 
             // MARK: Customize
@@ -37,132 +54,139 @@ struct OrderDetailView: View {
                 TextField("Notes (e.g., lactose free)", text: $working.notes)
             }
 
-            // MARK: Actions
+            // MARK: Actions (exactly 3)
             Section {
-                // Save Favorite (centered)
-                centeredRowButton(title: "Save as Favorite", style: .bordered) {
-                    store.saveFavorite(for: person, order: working)
-                    Haptics.success()
-                }
-
-                // Load Favorite (if any)
-                if person.favorite != nil {
-                    centeredRowButton(title: "Use Favorite", style: .bordered) {
-                        if let fav = person.favorite { working = fav }
-                        Haptics.success()
+                // 1) Place Order (only when no saved order yet)
+                if !hasSavedOrder {
+                    wideFilledButton("Place Order", disabled: !canSubmitNew) {
+                        // write chosen values into the order
+                        if let d = selectedDrink { working.drink = d }
+                        if let s = selectedSize  { working.size  = s }
+                        store.updateDraft(for: person, order: working)
+                        store.submitOrder(for: person)
+                        showSubmitted = true
                     }
                 }
 
-                // Load Last Order (explicit "modify" entry point)
-                if person.lastOrder != nil {
-                    centeredRowButton(title: "Load Submitted Order", style: .bordered) {
-                        if let last = person.lastOrder { working = last }
-                        Haptics.success()
+                // 2) Update Order (shown when a saved order exists)
+                if hasSavedOrder {
+                    wideFilledButton("Update Order", disabled: !(selectedDrink != nil && selectedSize != nil)) {
+                        if let d = selectedDrink { working.drink = d }
+                        if let s = selectedSize  { working.size  = s }
+                        store.updateDraft(for: person, order: working)
+                        store.submitOrder(for: person)
+                        showUpdated = true
                     }
                 }
 
-                // Clear current selections (keeps submitted history)
-                centeredRowButton(title: "Clear Current Selections", style: .bordered) {
-                    confirmClearCurrent = true
+                // 3) Clear Order (remove saved order and reset UI)
+                wideOutlineButton("Clear Order", disabled: !hasSavedOrder) {
+                    confirmClear = true
                 }
-                .confirmationDialog("Clear current selections?", isPresented: $confirmClearCurrent, titleVisibility: .visible) {
-                    Button("Clear", role: .destructive) {
-                        working = Order()
+                .confirmationDialog("Clear submitted order for \(person.name)?",
+                                    isPresented: $confirmClear, titleVisibility: .visible) {
+                    Button("Clear Order", role: .destructive) {
+                        store.clearLastOrder(for: person)
                         store.clearDraft(for: person)
-                        Haptics.success()
+                        resetToPlaceholders()
                     }
                     Button("Cancel", role: .cancel) {}
                 }
-
-                // Submit / Update (perfectly centered text)
-                centeredProminentButton(title: isUpdatingExisting ? "Update Order" : "Place Order") {
-                    // ensure a draft exists even if user didn’t change anything
-                    store.updateDraft(for: person, order: working)
-                    store.submitOrder(for: person)
-                    Haptics.success()
-                    showSuccess = true
-                }
-
-                // Clear the submitted order (history) — optional destructive
-                if person.lastOrder != nil {
-                    centeredRowButton(title: "Clear Submitted Order", style: .bordered) {
-                        confirmClearSubmitted = true
-                    }
-                    .tint(.red)
-                    .confirmationDialog("Clear submitted order for \(person.name)?", isPresented: $confirmClearSubmitted, titleVisibility: .visible) {
-                        Button("Clear Submitted Order", role: .destructive) {
-                            store.clearLastOrder(for: person)
-                            // Also reset the working UI to defaults so user starts fresh
-                            working = store.draftOrder(for: person)
-                            Haptics.success()
-                        }
-                        Button("Cancel", role: .cancel) {}
-                    }
-                }
             } footer: {
-                Text("Tip: Tap “Load Submitted Order” to modify what was saved previously, then tap “Update Order”.")
+                Text(!hasSavedOrder
+                     ? "Choose a Type and a Size to enable Place Order."
+                     : "Change Type/Size or other options, then tap Update Order. Use Clear Order to remove it.")
             }
         }
         .navigationTitle(person.name)
-        .onAppear {
-            // Start from a sensible draft and register it so submit always works
-            working = store.draftOrder(for: person)
-            store.updateDraft(for: person, order: working)
-        }
-        .onChange(of: working) { newValue in
-            store.updateDraft(for: person, order: newValue)
-        }
-        .alert(isUpdatingExisting ? "Order updated successfully" : "Order submitted successfully",
-               isPresented: $showSuccess) {
-            Button("OK") {
-                // If you want to automatically go back to the list:
-                // dismiss()
-            }
+
+        // keep Order in sync if user picks the values later
+        .onChange(of: selectedDrink) { if let d = $0 { working.drink = d } }
+        .onChange(of: selectedSize)  { if let s = $0 { working.size  = s } }
+
+        .onAppear { configureInitialState() }
+
+        // Alerts
+        .alert("Order submitted successfully", isPresented: $showSubmitted) {
+            Button("OK") { /* dismiss() if you want */ }
         } message: {
             Text("\(person.name)’s \(working.size.rawValue) \(working.drink.rawValue) has been saved.")
         }
+        .alert("Order updated successfully", isPresented: $showUpdated) {
+            Button("OK") { /* dismiss() if you want */ }
+        } message: {
+            Text("\(person.name)’s order has been updated.")
+        }
     }
 
-    // MARK: - Perfectly centered buttons inside Form rows
+    // MARK: - Initial/Reset helpers
+    private func configureInitialState() {
+        // Start with any existing draft to keep sugars/milk/notes
+        working = store.draftOrder(for: person)
 
-    /// A helper that creates a *prominent* full-width, truly centered button inside a Form row.
-    /// Uses Spacer–Text–Spacer so even with Form row layout, the label is visually centered.
+        if let last = livePerson?.lastOrder {
+            // Existing order: preselect so Update is enabled immediately
+            selectedDrink = last.drink
+            selectedSize  = last.size
+        } else {
+            // New order: force placeholders until user chooses
+            selectedDrink = nil
+            selectedSize  = nil
+        }
+        // Keep draft in store in sync
+        store.updateDraft(for: person, order: working)
+    }
+
+    private func resetToPlaceholders() {
+        working = Order()
+        selectedDrink = nil
+        selectedSize  = nil
+    }
+
+    // MARK: - Simple centered buttons (SDK-friendly, no modern .buttonStyle shorthands)
     @ViewBuilder
-    private func centeredProminentButton(title: String, action: @escaping () -> Void) -> some View {
+    private func wideFilledButton(_ title: String, disabled: Bool = false, action: @escaping () -> Void) -> some View {
         HStack {
             Spacer(minLength: 0)
             Button(action: action) {
-                // TEXT-ONLY to avoid icon shifting; bolded; centered by Spacers
-                Text(title).fontWeight(.semibold)
+                Text(title).font(.headline)
+                    .foregroundColor(.white)
+                    .padding(.vertical, 12)
                     .frame(maxWidth: .infinity)
                     .multilineTextAlignment(.center)
+                    .background(disabled ? Color.gray.opacity(0.4) : Color.accentColor)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+            .disabled(disabled)
+            .buttonStyle(.plain)
             Spacer(minLength: 0)
         }
-        // Remove default left inset so the visual width is truly full width
         .listRowInsets(EdgeInsets())
+        .opacity(disabled ? 0.8 : 1.0)
     }
 
-    /// A helper that creates a bordered full-width centered button.
     @ViewBuilder
-    private func centeredRowButton(title: String, style: ButtonStyleType = .bordered, action: @escaping () -> Void) -> some View {
+    private func wideOutlineButton(_ title: String, disabled: Bool = false, action: @escaping () -> Void) -> some View {
         HStack {
             Spacer(minLength: 0)
             Button(action: action) {
-                Text(title)
+                Text(title).font(.headline)
+                    .foregroundColor(disabled ? .gray : .accentColor)
+                    .padding(.vertical, 12)
                     .frame(maxWidth: .infinity)
                     .multilineTextAlignment(.center)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(disabled ? Color.gray.opacity(0.6) : Color.accentColor, lineWidth: 1)
+                    )
             }
-            .buttonStyle(style == .bordered ? .bordered : .borderless)
-            .controlSize(.large)
+            .disabled(disabled)
+            .buttonStyle(.plain)
             Spacer(minLength: 0)
         }
         .listRowInsets(EdgeInsets())
+        .opacity(disabled ? 0.6 : 1.0)
     }
-
-    private enum ButtonStyleType { case bordered, borderless }
 }
 
 #Preview {

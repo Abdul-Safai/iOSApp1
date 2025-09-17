@@ -15,23 +15,47 @@ struct RunTimerView: View {
                 .font(.system(size: 56, weight: .semibold, design: .rounded))
                 .monospacedDigit()
 
-            HStack(spacing: 16) {
+            HStack(spacing: 12) {
+                // Start/Pause (filled)
                 Button(isRunning ? "Pause" : "Start") {
                     isRunning ? pause() : start()
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.plain)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity)
+                .background(Color.accentColor)
+                .foregroundColor(.white)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
+                // Reset (outlined)
                 Button("Reset") { reset() }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.plain)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity)
+                    .foregroundColor(.accentColor)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color.accentColor, lineWidth: 1)
+                    )
 
-                Menu("Preset") {
+                // Preset menu (outlined)
+                Menu {
                     Button("5 min") { setPreset(5 * 60) }
                     Button("10 min") { setPreset(10 * 60) }
                     Button("15 min") { setPreset(15 * 60) }
+                } label: {
+                    Text("Preset")
+                        .padding(.vertical, 10)
+                        .frame(maxWidth: .infinity)
+                        .foregroundColor(.accentColor)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(Color.accentColor, lineWidth: 1)
+                        )
                 }
             }
-            .font(.title3)
-            .padding(.top, 8)
+            .font(.headline)
+            .padding(.top, 4)
 
             Text("Start the timer and collect orders before it hits 0.")
                 .foregroundStyle(.secondary)
@@ -56,7 +80,6 @@ struct RunTimerView: View {
             }
         }
     }
-
     private func pause() { invalidate(); isRunning = false }
     private func reset() { invalidate(); secondsRemaining = 10 * 60; isRunning = false }
     private func setPreset(_ s: Int) { secondsRemaining = s }

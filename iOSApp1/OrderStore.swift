@@ -16,7 +16,7 @@ final class OrderStore: ObservableObject {
             .store(in: &cancellables)
     }
 
-    // MARK: - CRUD
+    // MARK: - People
     func addPerson(name: String) {
         let t = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty else { return }
@@ -27,6 +27,7 @@ final class OrderStore: ObservableObject {
         people.remove(atOffsets: offsets)
     }
 
+    // MARK: - Orders
     func draftOrder(for person: Person) -> Order {
         if let existing = currentRun[person.id] { return existing }
         if let fav = person.favorite { return fav }

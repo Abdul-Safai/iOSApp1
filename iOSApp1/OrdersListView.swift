@@ -15,7 +15,12 @@ struct OrdersListView: View {
                             .onSubmit(addPerson)
 
                         Button("Add", action: addPerson)
-                            .buttonStyle(.borderedProminent)
+                            .buttonStyle(.plain)
+                            .padding(.vertical, 6)
+                            .padding(.horizontal, 12)
+                            .foregroundColor(.accentColor)
+                            .background(Color.accentColor.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                             .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
                     }
                 }
@@ -71,10 +76,7 @@ struct OrdersListView: View {
             .listStyle(.insetGrouped)
             .scrollContentBackground(.automatic)
             .toolbar {
-                // Use explicit ToolbarItem placements to avoid ambiguity
-                ToolbarItem(placement: .topBarLeading) {
-                    EditButton()
-                }
+                ToolbarItem(placement: .topBarLeading) { EditButton() }
                 ToolbarItem(placement: .topBarTrailing) {
                     if !store.people.isEmpty {
                         ShareLink(item: summaryForSharing()) {
@@ -92,7 +94,6 @@ struct OrdersListView: View {
         store.addPerson(name: newName)
         newName = ""
     }
-
     private func summary(of order: Order) -> String {
         var parts = [order.size.rawValue, order.drink.rawValue]
         if order.decaf { parts.append("Decaf") }
@@ -102,16 +103,13 @@ struct OrdersListView: View {
         if !order.notes.isEmpty { parts.append("[\(order.notes)]") }
         return parts.joined(separator: " • ")
     }
-
     private func summaryForSharing() -> String {
         var lines: [String] = ["Tim Hortons Run"]
         for p in store.people {
             if let o = p.lastOrder {
                 let row = [
-                    p.name + ":",
-                    o.size.rawValue, o.drink.rawValue,
-                    o.decaf ? "(Decaf)" : "",
-                    o.iced ? "(Iced)" : "",
+                    p.name + ":", o.size.rawValue, o.drink.rawValue,
+                    o.decaf ? "(Decaf)" : "", o.iced ? "(Iced)" : "",
                     o.sugars > 0 ? "\(o.sugars)x sugar" : "",
                     o.milks > 0 ? "\(o.milks)x milk" : "",
                     o.notes.isEmpty ? "" : "[\(o.notes)]"
