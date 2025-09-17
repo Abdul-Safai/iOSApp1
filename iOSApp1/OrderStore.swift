@@ -38,6 +38,10 @@ final class OrderStore: ObservableObject {
         currentRun[person.id] = order
     }
 
+    func clearDraft(for person: Person) {
+        currentRun[person.id] = nil
+    }
+
     func saveFavorite(for person: Person, order: Order) {
         guard let idx = people.firstIndex(where: { $0.id == person.id }) else { return }
         people[idx].favorite = order
@@ -48,6 +52,11 @@ final class OrderStore: ObservableObject {
               let order = currentRun[person.id] else { return }
         people[idx].lastOrder = order
         currentRun[person.id] = nil
+    }
+
+    func clearLastOrder(for person: Person) {
+        guard let idx = people.firstIndex(where: { $0.id == person.id }) else { return }
+        people[idx].lastOrder = nil
     }
 
     // MARK: - Persistence

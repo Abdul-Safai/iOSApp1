@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 
 struct RunTimerView: View {
     @State private var secondsRemaining: Int = 10 * 60
@@ -37,6 +38,7 @@ struct RunTimerView: View {
                 .padding(.horizontal)
         }
         .padding()
+        .onAppear { requestNotifPermission() }
         .onDisappear { invalidate() }
     }
 
@@ -49,6 +51,8 @@ struct RunTimerView: View {
             } else {
                 invalidate()
                 isRunning = false
+                notifyTimerDone()
+                Haptics.success()
             }
         }
     }
@@ -58,6 +62,19 @@ struct RunTimerView: View {
     private func setPreset(_ s: Int) { secondsRemaining = s }
     private func invalidate() { timer?.invalidate(); timer = nil }
     private func timeString(from s: Int) -> String { String(format: "%02d:%02d", s/60, s%60) }
+
+    // MARK: - Notifications (optional)
+    private func requestNotifPermission() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+    }
+    private func notifyTimerDone() {
+        let content = UNMutableNotificationContent()
+        content.title = "Coffee Run"
+        content.body = "Timer finished — place the order!"
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 0.1, repeats: false)
+        let req = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: trigger)
+        UNUserNotificationCenter.current().add(req, withCompletionHandler: nil)
+    }
 }
 
 #Preview { RunTimerView() }

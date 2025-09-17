@@ -13,9 +13,33 @@ struct OrdersListView: View {
                             .textInputAutocapitalization(.words)
                             .submitLabel(.done)
                             .onSubmit(addPerson)
+
                         Button("Add", action: addPerson)
                             .buttonStyle(.borderedProminent)
                             .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                }
+
+                if store.people.isEmpty {
+                    if #available(iOS 17.0, *) {
+                        Section {
+                            ContentUnavailableView(
+                                "No team members yet",
+                                systemImage: "person.2",
+                                description: Text("Add names above to start a coffee run.")
+                            )
+                        }
+                    } else {
+                        Section {
+                            VStack(spacing: 8) {
+                                Image(systemName: "person.2").font(.largeTitle)
+                                Text("No team members yet").font(.headline)
+                                Text("Add names above to start a coffee run.")
+                                    .font(.footnote).foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .padding(.vertical, 16)
+                        }
                     }
                 }
 
@@ -44,10 +68,26 @@ struct OrdersListView: View {
                 }
             }
             .navigationTitle("Tim Hortons Run")
-            .toolbar { EditButton() }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.automatic)
+            .toolbar {
+                // Use explicit ToolbarItem placements to avoid ambiguity
+                ToolbarItem(placement: .topBarLeading) {
+                    EditButton()
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    if !store.people.isEmpty {
+                        ShareLink(item: summaryForSharing()) {
+                            Image(systemName: "square.and.arrow.up")
+                        }
+                        .accessibilityLabel("Share today's orders")
+                    }
+                }
+            }
         }
     }
 
+    // MARK: - Helpers
     private func addPerson() {
         store.addPerson(name: newName)
         newName = ""
@@ -59,7 +99,27 @@ struct OrdersListView: View {
         if order.iced { parts.append("Iced") }
         if order.sugars > 0 { parts.append("\(order.sugars)x sugar") }
         if order.milks > 0 { parts.append("\(order.milks)x milk") }
+        if !order.notes.isEmpty { parts.append("[\(order.notes)]") }
         return parts.joined(separator: " • ")
+    }
+
+    private func summaryForSharing() -> String {
+        var lines: [String] = ["Tim Hortons Run"]
+        for p in store.people {
+            if let o = p.lastOrder {
+                let row = [
+                    p.name + ":",
+                    o.size.rawValue, o.drink.rawValue,
+                    o.decaf ? "(Decaf)" : "",
+                    o.iced ? "(Iced)" : "",
+                    o.sugars > 0 ? "\(o.sugars)x sugar" : "",
+                    o.milks > 0 ? "\(o.milks)x milk" : "",
+                    o.notes.isEmpty ? "" : "[\(o.notes)]"
+                ].filter { !$0.isEmpty }.joined(separator: " ")
+                lines.append(row)
+            }
+        }
+        return lines.joined(separator: "\n")
     }
 }
 
