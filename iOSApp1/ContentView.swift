@@ -1,24 +1,18 @@
-//
-//  ContentView.swift
-//  iOSApp1
-//
-//  Created by Abdul Aziz Safai on 2025-09-17.
-//
-
 import SwiftUI
 
 struct ContentView: View {
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        TabView {
+            OrdersListView()
+                .tabItem { Label("Orders", systemImage: "list.bullet") }
+
+            RunTimerView()
+                .tabItem { Label("Run Timer", systemImage: "timer") }
         }
-        .padding()
     }
 }
 
 #Preview {
     ContentView()
+        .environmentObject(OrderStore())
 }
